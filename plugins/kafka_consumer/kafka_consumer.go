@@ -10,6 +10,9 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/wvanbergen/kafka/consumergroup"
+
+	"encoding/json"
+	"time"
 )
 
 type Kafka struct {
@@ -102,6 +105,40 @@ func (k *Kafka) Start() error {
 	return nil
 }
 
+func jsonToPoints(buf []byte) ([]models.Point, error) {
+	points := []models.Point{}
+
+	var obj interface{}
+	if err := json.Unmarshal(buf, &obj); err != nil {
+		return nil, err
+	}
+	m := obj.(map[string]interface{})
+
+	tags := models.Tags{
+		"deviceGuid": m["deviceGuid"].(string),
+	}
+
+	ts, err := time.Parse(time.RFC3339Nano, m["timestamp"].(string))
+	if err != nil {
+		return nil, err
+	}
+
+	pt, err := models.NewPoint(
+		m["notification"].(string),
+		tags,
+		m["parameters"].(map[string]interface{}),
+		ts,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	points = append(points, pt)
+
+	return points, nil
+}
+
 // parser() reads all incoming messages from the consumer, and parses them into
 // influxdb metric points.
 func (k *Kafka) parser() {
@@ -112,7 +149,7 @@ func (k *Kafka) parser() {
 		case err := <-k.errs:
 			log.Printf("Kafka Consumer Error: %s\n", err.Error())
 		case msg := <-k.in:
-			points, err := models.ParsePoints(msg.Value)
+			points, err := jsonToPoints(msg.Value)
 			if err != nil {
 				log.Printf("Could not parse kafka message: %s, error: %s",
 					string(msg.Value), err.Error())

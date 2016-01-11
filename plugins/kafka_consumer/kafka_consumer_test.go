@@ -1,6 +1,7 @@
 package kafka_consumer
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,7 +13,14 @@ import (
 )
 
 const (
-	testMsg     = "cpu_load_short,host=server01 value=23422.0 1422568543702900257"
+	testMsg = `{
+		"deviceGuid":"orange-box",
+		"notification":"sensordata",
+		"timestamp":"2016-01-01T12:00:00Z",
+		"parameters": {
+			"value": 100.0
+		} 
+	}`
 	invalidMsg  = "cpu_load_short,host=server01 1422568543702900257"
 	pointBuffer = 5
 )
@@ -85,7 +93,8 @@ func TestRunParserAndGather(t *testing.T) {
 	k.Gather(&acc)
 
 	assert.Equal(t, len(acc.Points), 1)
-	assert.True(t, acc.CheckValue("cpu_load_short", 23422.0))
+	fmt.Printf("%T\n", acc.Points[0].Fields["temperature"])
+	assert.True(t, acc.CheckValue("sensordata", 100.0))
 }
 
 func saramaMsg(val string) *sarama.ConsumerMessage {
